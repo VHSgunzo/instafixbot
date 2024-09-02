@@ -1,11 +1,13 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -27,7 +29,12 @@ func main() {
 		log.Fatal("TGBOT_TOKEN переменная окружения не задана!")
 	}
 
-	bot, err = tgbotapi.NewBotAPI(token)
+	// bot, err = tgbotapi.NewBotAPI(token)
+	bot, err = tgbotapi.NewBotAPIWithClient(token, "https://api.telegram.org/bot%s/%s", &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	})
 	if err != nil {
 		log.Panic(err)
 	}
@@ -46,17 +53,37 @@ func main() {
 
 	updates := bot.GetUpdatesChan(update)
 
+	// for render.com
 	go func() {
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("Бот работает!"))
 		})
-
 		http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(fmt.Sprintf("Бот работает! Очередь обновлений: %d", len(updates))))
 		})
-
 		log.Fatal(http.ListenAndServe(":7860", nil))
 	}()
+
+	ticker := time.NewTicker(300 * time.Second)
+	go func() {
+		for range ticker.C {
+			// resp, err := http.Get("http://localhost:7860/status")
+			resp, err := http.Get("https://instafixbot.onrender.com/status")
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			if resp.StatusCode != http.StatusOK {
+				log.Println("Ошибка проверки статуса:", resp.StatusCode)
+			} else {
+				log.Println("Статус бота:", resp.Status)
+			}
+			if err := resp.Body.Close(); err != nil {
+				log.Println(err)
+			}
+		}
+	}()
+	// for render.com
 
 	var msg tgbotapi.MessageConfig
 	for update := range updates {
