@@ -66,9 +66,14 @@ func main() {
 
 	ticker := time.NewTicker(300 * time.Second)
 	go func() {
+		client := &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		}
 		for range ticker.C {
-			// resp, err := http.Get("http://localhost:7860/status")
-			resp, err := http.Get("https://instafixbot.onrender.com/status")
+			// resp, err := client.Get("http://localhost:7860/status")
+			resp, err := client.Get("https://instafixbot.onrender.com/status")
 			if err != nil {
 				log.Println(err)
 				continue
